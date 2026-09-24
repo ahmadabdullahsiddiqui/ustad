@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.0';
+var APP_VERSION='1.6.1';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -955,11 +955,25 @@ function paintTabs(){
       '><svg viewBox="0 0 24 24">'+ICONS[tb[0]]+'</svg><span>'+esc(t(tb[1]))+'</span></button>';
   }).join('');
 }
+function sameRoute(a,b){return !!a&&!!b&&a.tab===b.tab&&(a.sub||null)===(b.sub||null)&&String(a.arg==null?'':a.arg)===String(b.arg==null?'':b.arg);}
 function go(tab,sub,arg){
   route={tab:tab,sub:sub||null,arg:(arg==null?null:arg)};
+  /* Push a history entry so the browser/hardware Back & Forward buttons step
+     through app screens instead of leaving the app. popstate replays the route. */
+  try{
+    var cur=window.history.state&&window.history.state.route;
+    if(!sameRoute(cur,route))window.history.pushState({route:route},'');
+  }catch(e){}
   paintTabs();render();
   window.scrollTo(0,0);
 }
+/* Back/Forward: restore the saved route without pushing a new entry. */
+window.addEventListener('popstate',function(e){
+  var r=(e&&e.state&&e.state.route)||{tab:'home',sub:null,arg:null};
+  route={tab:r.tab||'home',sub:r.sub||null,arg:(r.arg==null?null:r.arg)};
+  paintTabs();render();
+  window.scrollTo(0,0);
+});
 document.getElementById('tabs').addEventListener('click',function(e){
   var b=e.target.closest('[data-tab]');if(b)go(b.dataset.tab);
 });
@@ -1921,6 +1935,7 @@ function boot(){
   });
   var lb=document.getElementById('langBtn');   /* header sits outside #view */
   if(lb)lb.addEventListener('click',function(){S.lang=(S.lang==='de')?'en':'de';save();render();});
+  try{window.history.replaceState({route:route},'');}catch(e){}   /* seed the first history entry */
   paintTabs();render();
   installPwa();
 }
