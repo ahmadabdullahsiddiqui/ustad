@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.5';
+var APP_VERSION='1.6.6';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1864,13 +1864,24 @@ function viewOdd(){
     var cls='opt';
     if(odd.picked){ if(o.id===rd.ans)cls+=' correct'; else if(o.id===odd.picked)cls+=' wrong'; }
     h+='<button class="'+cls+'" data-oopt="'+o.id+'"'+(odd.picked?' disabled':'')+'>'+
-       '<div><div style="font-weight:600">'+esc(gloss(o))+'</div><div class="ur" style="font-size:1.3rem">'+esc(o.ur)+'</div></div></button>';
+       '<div><div style="font-weight:600">'+esc(gloss(o))+'</div><div class="ur" style="font-size:1.3rem">'+esc(o.ur)+'</div><div class="tl">'+esc(o.tl)+'</div></div></button>';
   });
   h+='</div>';
   if(odd.picked){
-    var right=odd.picked===rd.ans;
-    h+='<div class="fb '+(right?'fb-ok':'fb-no')+'">'+(right?(de?'Richtig! 🎉':'Correct! 🎉'):(de?'Fast! Die anderen drei sind: '+esc(rd.topic):'Almost! The other three are: '+esc(rd.topic)))+'</div>';
-    h+='<button class="btn" data-onext="1">'+(odd.i<odd.rounds.length-1?(de?'Weiter →':'Next →'):(de?'Fertig':'Done'))+'</button>';
+    var right=odd.picked===rd.ans, intr=null;
+    for(var oi=0;oi<rd.opts.length;oi++){ if(rd.opts[oi].id===rd.ans){intr=rd.opts[oi];break;} }
+    h+='<div class="fb '+(right?'fb-ok':'fb-no')+'">'+(right?(de?'Richtig! 🎉':'Correct! 🎉'):(de?'Fast! 💪':'Almost! 💪'))+'</div>';
+    /* Teach the answer: name the odd word (with sound) and remind what ties the
+       other three together, so a child learns from every round. */
+    h+='<div class="card pad" style="text-align:center">'+
+       '<div class="eyebrow">'+(de?'Das passt nicht':'The odd one out')+'</div>'+
+       '<div class="ur" style="font-size:1.7rem">'+esc(intr.ur)+'</div>'+
+       '<div class="tl">'+esc(intr.tl)+'</div>'+
+       '<div style="font-weight:600">'+esc(gloss(intr))+'</div>'+
+       '<p class="muted" style="margin:8px 0 0">'+(de?('Die anderen drei gehören zusammen: '+esc(rd.topic)):('The other three go together: '+esc(rd.topic)))+'</p>'+
+       '<div style="margin-top:10px" class="split"><button class="btn ghost slim" data-speak="'+esc(intr.ur)+'">'+(de?'Anhören':'Hear it')+'</button>'+
+       '<button class="btn slim" data-onext="1">'+(odd.i<odd.rounds.length-1?(de?'Weiter →':'Next →'):(de?'Fertig':'Done'))+'</button></div>'+
+       '</div>';
   }
   return h+'</div>';
 }
@@ -1935,7 +1946,9 @@ function onClick(e){
     odd.picked=el.dataset.oopt;
     var orr=odd.rounds[odd.i];
     if(odd.picked===orr.ans)odd.score++;
-    render();return;
+    render();
+    for(var oi=0;oi<orr.opts.length;oi++){ if(orr.opts[oi].id===orr.ans){speak(orr.opts[oi].ur);break;} }   /* hear the odd word */
+    return;
   }
   if((el=t.closest('[data-onext]'))){if(!odd)return;odd.i++;odd.picked=null;render();if(odd.i>=odd.rounds.length&&odd.score===odd.rounds.length)celebrate();return;}
   if((el=t.closest('[data-omenu]'))){odd=null;render();return;}
