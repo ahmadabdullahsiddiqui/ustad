@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.4';
+var APP_VERSION='1.6.5';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1812,9 +1812,16 @@ function startOdd(){
     var g={}; byCat[c].forEach(function(w){g[gloss(w)]=1;}); return Object.keys(g).length>=3;
   });
   if(cats.length<2){toast(de?'Nicht genug Kategorien':'Not enough categories');return;}
+  /* Categories that overlap in meaning must never be paired: a fruit IS food, a
+     job holder IS a person, a colour IS a describing word, a market IS a place —
+     pairing them would make the "odd one" arguable. */
+  var RELATED={food:['fruitveg'],fruitveg:['food'],people:['jobs'],jobs:['people'],
+    places:['travel'],travel:['places'],colors:['adj'],adj:['colors','feelings'],
+    feelings:['adj'],home:['school'],school:['home']};
   var rounds=[],guard=0;
-  while(rounds.length<8&&guard++<300){
+  while(rounds.length<8&&guard++<400){
     var cs=shuffle(cats.slice()), A=cs[0], B=cs[1];
+    if((RELATED[A]||[]).indexOf(B)>=0)continue;   /* skip confusable domain pairs */
     /* three group words with distinct meanings */
     var three=[],seen={};
     shuffle(byCat[A].slice()).forEach(function(w){ if(three.length<3&&!seen[gloss(w)]){seen[gloss(w)]=1;three.push(w);} });
