@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.1';
+var APP_VERSION='1.6.2';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1541,16 +1541,37 @@ function checkWrite(){
   else { el.className='fb fb-no'; el.textContent=de?'Fast! Schreib den ganzen Buchstaben 💪':'Almost! Write the whole letter 💪'; }
 }
 
+/* ---- shared game helpers ---- */
+/* The word pool a game draws from. For a topic it is that topic's words; for the
+   mixed pool we cap each topic (so the 100-strong numbers100 topic can't flood a
+   game with bare digits) and keep only real words. */
+function wordPool(topicId){
+  if(topicId)return topicWords(topicId).filter(function(w){return w.kind==='word';});
+  var byT={},out=[];
+  WORDS.forEach(function(w){ if(w.kind!=='word')return; (byT[w.topic]=byT[w.topic]||[]).push(w); });
+  Object.keys(byT).forEach(function(k){ out=out.concat(shuffle(byT[k].slice()).slice(0,12)); });
+  return out;
+}
+/* Pick n wrong options for w, preferring words from the SAME topic so the choices
+   are coherent (e.g. a fruit's options are other fruits), filling from the rest
+   only if needed. Never repeats a meaning. */
+function distractorsFor(w,pool,n){
+  var same=shuffle(pool.filter(function(o){return o.topic===w.topic&&o.id!==w.id&&gloss(o)!==gloss(w);}));
+  var other=shuffle(pool.filter(function(o){return o.topic!==w.topic&&o.id!==w.id&&gloss(o)!==gloss(w);}));
+  var picked=[],seen={}; seen[gloss(w)]=1;
+  same.concat(other).forEach(function(o){ if(picked.length<n&&!seen[gloss(o)]){seen[gloss(o)]=1;picked.push(o);} });
+  return picked;
+}
+
 /* ---- Listen & Pick (hear a word, tap its meaning) ---- */
 var listen=null;
 function startListen(topicId){
   var de=S.lang==='de';
-  var pool=topicId?topicWords(topicId):WORDS.filter(function(w){return w.kind==='word';});
+  var pool=wordPool(topicId);
   if(pool.length<4){toast(de?'Nicht genug Wörter':'Not enough words yet');return;}
   var picks=shuffle(pool.slice()).slice(0,Math.min(8,pool.length));
   var qs=picks.map(function(w){
-    var others=shuffle(pool.filter(function(o){return o.id!==w.id&&gloss(o)!==gloss(w);})).slice(0,3);
-    return {w:w,opts:shuffle([w].concat(others))};
+    return {w:w,opts:shuffle([w].concat(distractorsFor(w,pool,3)))};
   });
   listen={topic:topicId||null,qs:qs,i:0,score:0,picked:null,_spoke:-1};
   go('listen');
@@ -1603,8 +1624,7 @@ function viewListen(){
 var build=null;
 function startBuild(topicId){
   var de=S.lang==='de';
-  var pool=topicId?topicWords(topicId):WORDS.filter(function(w){return w.kind==='word';});
-  pool=pool.filter(function(w){var n=w.ur.replace(/\s/g,'');return w.ur.indexOf(' ')<0&&n.length>=2&&n.length<=7;});
+  var pool=wordPool(topicId).filter(function(w){var n=w.ur.replace(/\s/g,'');return w.ur.indexOf(' ')<0&&n.length>=2&&n.length<=7;});
   if(!pool.length){toast(de?'Nicht genug kurze Wörter':'Not enough short words here');return;}
   var picks=shuffle(pool.slice()).slice(0,Math.min(8,pool.length));
   build={list:picks,i:0,order:[],tiles:null,solved:false,guide:false,topic:topicId||null,done:0};
@@ -1660,9 +1680,12 @@ function viewBuild(){
 function tapBuild(ti){
   if(!build||build.solved)return;
   var tile=build.tiles[ti]; if(!tile||tile.used)return;
-  if(tile.idx===build.order.length){
+  /* Match by the LETTER needed next, not by tile index, so repeated letters
+     (e.g. چینی has two ی) are interchangeable — tapping either is accepted. */
+  var target=build.list[build.i].ur.split('');
+  if(tile.ch===target[build.order.length]){
     tile.used=true; build.order.push(tile);
-    if(build.order.length===build.tiles.length){ build.solved=true; build.done++; render(); celebrate(); speak(build.list[build.i].ur); return; }
+    if(build.order.length===target.length){ build.solved=true; build.done++; render(); celebrate(); speak(build.list[build.i].ur); return; }
     render();
   } else {
     toast(S.lang==='de'?'Versuch einen anderen 🤔':'Try another letter 🤔');
@@ -1676,7 +1699,7 @@ function undoBuild(){
 /* ---- Word Rush (beat the clock) ---- */
 var rush=null;
 function startRush(){
-  rush={time:60,score:0,q:null,over:false,last:null,timer:null};
+  rush={time:60,score:0,q:null,over:false,last:null,timer:null,pool:wordPool(null)};
   nextRush();
   go('rush');
   rush.timer=setInterval(rushTick,1000);
@@ -1695,11 +1718,9 @@ function finishRush(){
   if(rush.score>0&&rush.score>=(S.rush||0))celebrate();
 }
 function nextRush(){
-  var pool=WORDS.filter(function(w){return w.kind==='word';});
-  var w=pool[Math.floor(Math.random()*pool.length)];
-  var others=shuffle(pool.filter(function(o){return o.id!==w.id&&o.en!==w.en;})).slice(0,3);
+  var pool=rush.pool, w=pool[Math.floor(Math.random()*pool.length)];
   var dir=Math.random()<.5?'en2ur':'ur2en';
-  rush.q={w:w,dir:dir,opts:shuffle([w].concat(others))};
+  rush.q={w:w,dir:dir,opts:shuffle([w].concat(distractorsFor(w,pool,3)))};
   rush.last=null;
 }
 function answerRush(id){
@@ -1755,15 +1776,24 @@ function viewRush(){
 var odd=null;
 function startOdd(){
   var de=S.lang==='de';
-  var tw=TOPICS.filter(function(t){return t.kind==='word'&&topicWords(t.id).length>=3;});
+  var tw=TOPICS.filter(function(t){return t.kind==='word'&&topicWords(t.id).filter(function(w){return w.kind==='word';}).length>=3;});
   if(tw.length<2){toast(de?'Nicht genug Themen':'Not enough topics');return;}
-  var rounds=[];
-  for(var r=0;r<8;r++){
-    var ts=shuffle(tw.slice());
-    var three=shuffle(topicWords(ts[0].id).slice()).slice(0,3);
-    var intr=shuffle(topicWords(ts[1].id).slice())[0];
-    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:ts[0].name});
+  var rounds=[],guard=0;
+  while(rounds.length<8&&guard++<300){
+    var ts=shuffle(tw.slice()), A=ts[0], B=ts[1];
+    var aWords=topicWords(A.id).filter(function(w){return w.kind==='word';});
+    /* three group words with distinct meanings */
+    var three=[],seen={};
+    shuffle(aWords.slice()).forEach(function(w){ if(three.length<3&&!seen[gloss(w)]){seen[gloss(w)]=1;three.push(w);} });
+    if(three.length<3)continue;
+    /* intruder from another topic — never a meaning that also exists in the group's topic */
+    var aGloss={}; aWords.forEach(function(w){aGloss[gloss(w)]=1;});
+    var bWords=topicWords(B.id).filter(function(w){return w.kind==='word'&&!aGloss[gloss(w)];});
+    if(!bWords.length)continue;
+    var intr=shuffle(bWords)[0];
+    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:A.name});
   }
+  if(rounds.length<4){toast(de?'Nicht genug Wörter':'Not enough words');return;}
   odd={rounds:rounds,i:0,score:0,picked:null};
   go('odd');
 }
