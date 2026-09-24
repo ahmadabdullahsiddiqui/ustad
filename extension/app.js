@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.8';
+var APP_VERSION='1.6.9';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1413,7 +1413,7 @@ function viewScript0(){
 /* ---- Memory Match game ---- */
 var game=null, gameLock=false;
 function startGame(topicId){
-  var pool=topicId?topicWords(topicId):WORDS.filter(function(w){return w.kind==='word';});
+  var pool=topicId?topicWords(topicId).filter(function(w){return w.kind==='word';}):wordPool(null);
   var neat=pool.filter(function(w){return w.en.length<=14;});   /* keep cards tidy */
   if(neat.length>=4)pool=neat;
   var picks=shuffle(pool.slice()).slice(0,Math.min(6,pool.length));
@@ -1597,10 +1597,16 @@ function wordPool(topicId){
    are coherent (e.g. a fruit's options are other fruits), filling from the rest
    only if needed. Never repeats a meaning. */
 function distractorsFor(w,pool,n){
-  var same=shuffle(pool.filter(function(o){return o.cat===w.cat&&o.id!==w.id&&gloss(o)!==gloss(w);}));
-  var other=shuffle(pool.filter(function(o){return o.cat!==w.cat&&o.id!==w.id&&gloss(o)!==gloss(w);}));
+  var ok=function(o){return o.id!==w.id&&gloss(o)!==gloss(w);};
+  /* Prefer the answer's own topic first, then its category, then anything.
+     Same-topic-first keeps number options consistent (all digits, or all words)
+     rather than mixing "eight" with "39". */
+  var b1=shuffle(pool.filter(function(o){return ok(o)&&o.topic===w.topic&&o.cat===w.cat;}));
+  var b2=shuffle(pool.filter(function(o){return ok(o)&&o.cat===w.cat&&o.topic!==w.topic;}));
+  var b3=shuffle(pool.filter(function(o){return ok(o)&&o.topic===w.topic&&o.cat!==w.cat;}));
+  var b4=shuffle(pool.filter(function(o){return ok(o)&&o.cat!==w.cat&&o.topic!==w.topic;}));
   var picked=[],seen={}; seen[gloss(w)]=1;
-  same.concat(other).forEach(function(o){ if(picked.length<n&&!seen[gloss(o)]){seen[gloss(o)]=1;picked.push(o);} });
+  b1.concat(b2,b3,b4).forEach(function(o){ if(picked.length<n&&!seen[gloss(o)]){seen[gloss(o)]=1;picked.push(o);} });
   return picked;
 }
 
