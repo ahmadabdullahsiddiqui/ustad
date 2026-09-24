@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.2';
+var APP_VERSION='1.6.3';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -808,6 +808,25 @@ TOPICS.forEach(function(t){
   });
 });
 var BY_ID={};WORDS.forEach(function(w){BY_ID[w.id]=w;});
+/* A semantic category for a word, derived (not hand-tagged) so cross-cutting
+   words are grouped by what they ARE rather than which theme topic they sit in:
+   a verb inside "Feelings" (to cry) is a verb, a number is a number. Everything
+   else keeps its thematic topic (food, body, animals, colours …). Used to build
+   clean Odd-One-Out rounds and coherent distractors. */
+function wordCat(w){
+  if(w.kind==='phrase')return 'phrase';
+  if(/^to\s/i.test(w.en))return 'verb';   /* verb glosses read "to …"; the -نا spelling test over-catches nouns (پرانا old, کھانا food) */
+  if(w.topic==='numbers'||w.topic==='numbers100')return 'number';
+  return w.topic;
+}
+WORDS.forEach(function(w){w.cat=wordCat(w);});
+function catLabel(c){
+  var de=S.lang==='de';
+  if(c==='verb')return de?'Tuwörter':'action words';
+  if(c==='number')return de?'Zahlen':'numbers';
+  if(c==='phrase')return de?'Sätze':'phrases';
+  var t=topicById(c); return t?t.name:c;
+}
 function topicWords(id){return WORDS.filter(function(w){return w.topic===id;});}
 function topicById(id){for(var i=0;i<TOPICS.length;i++)if(TOPICS[i].id===id)return TOPICS[i];}
 
@@ -1556,8 +1575,8 @@ function wordPool(topicId){
    are coherent (e.g. a fruit's options are other fruits), filling from the rest
    only if needed. Never repeats a meaning. */
 function distractorsFor(w,pool,n){
-  var same=shuffle(pool.filter(function(o){return o.topic===w.topic&&o.id!==w.id&&gloss(o)!==gloss(w);}));
-  var other=shuffle(pool.filter(function(o){return o.topic!==w.topic&&o.id!==w.id&&gloss(o)!==gloss(w);}));
+  var same=shuffle(pool.filter(function(o){return o.cat===w.cat&&o.id!==w.id&&gloss(o)!==gloss(w);}));
+  var other=shuffle(pool.filter(function(o){return o.cat!==w.cat&&o.id!==w.id&&gloss(o)!==gloss(w);}));
   var picked=[],seen={}; seen[gloss(w)]=1;
   same.concat(other).forEach(function(o){ if(picked.length<n&&!seen[gloss(o)]){seen[gloss(o)]=1;picked.push(o);} });
   return picked;
@@ -1776,22 +1795,27 @@ function viewRush(){
 var odd=null;
 function startOdd(){
   var de=S.lang==='de';
-  var tw=TOPICS.filter(function(t){return t.kind==='word'&&topicWords(t.id).filter(function(w){return w.kind==='word';}).length>=3;});
-  if(tw.length<2){toast(de?'Nicht genug Themen':'Not enough topics');return;}
+  /* Group by derived category so the three share a real class (all animals, all
+     action words …) and the intruder is a clearly different class. */
+  var byCat={};
+  WORDS.forEach(function(w){ if(w.kind!=='word')return; (byCat[w.cat]=byCat[w.cat]||[]).push(w); });
+  var cats=Object.keys(byCat).filter(function(c){
+    var g={}; byCat[c].forEach(function(w){g[gloss(w)]=1;}); return Object.keys(g).length>=3;
+  });
+  if(cats.length<2){toast(de?'Nicht genug Kategorien':'Not enough categories');return;}
   var rounds=[],guard=0;
   while(rounds.length<8&&guard++<300){
-    var ts=shuffle(tw.slice()), A=ts[0], B=ts[1];
-    var aWords=topicWords(A.id).filter(function(w){return w.kind==='word';});
+    var cs=shuffle(cats.slice()), A=cs[0], B=cs[1];
     /* three group words with distinct meanings */
     var three=[],seen={};
-    shuffle(aWords.slice()).forEach(function(w){ if(three.length<3&&!seen[gloss(w)]){seen[gloss(w)]=1;three.push(w);} });
+    shuffle(byCat[A].slice()).forEach(function(w){ if(three.length<3&&!seen[gloss(w)]){seen[gloss(w)]=1;three.push(w);} });
     if(three.length<3)continue;
-    /* intruder from another topic — never a meaning that also exists in the group's topic */
-    var aGloss={}; aWords.forEach(function(w){aGloss[gloss(w)]=1;});
-    var bWords=topicWords(B.id).filter(function(w){return w.kind==='word'&&!aGloss[gloss(w)];});
+    /* intruder from another category — never a meaning that also exists in the group */
+    var aGloss={}; byCat[A].forEach(function(w){aGloss[gloss(w)]=1;});
+    var bWords=byCat[B].filter(function(w){return !aGloss[gloss(w)];});
     if(!bWords.length)continue;
     var intr=shuffle(bWords)[0];
-    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:A.name});
+    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:catLabel(A)});
   }
   if(rounds.length<4){toast(de?'Nicht genug Wörter':'Not enough words');return;}
   odd={rounds:rounds,i:0,score:0,picked:null};
