@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.7';
+var APP_VERSION='1.6.8';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -827,6 +827,19 @@ function catLabel(c){
   if(c==='phrase')return de?'Sätze':'phrases';
   var t=topicById(c); return t?t.name:c;
 }
+/* Short, child-friendly plural name for the group in Odd One Out, so the prompt
+   can tell the child what the three share ("Three are animals — tap the odd one"). */
+var ODD_GROUP={
+  animals:['animals','Tiere'], fruitveg:['fruits & vegetables','Obst & Gemüse'],
+  food:['food & drink','Essen & Trinken'], body:['body parts','Körperteile'],
+  colors:['colours','Farben'], clothing:['clothes','Kleidung'],
+  home:['things at home','Dinge zu Hause'], people:['people','Menschen'],
+  nature:['nature words','Naturwörter'], places:['places','Orte'],
+  travel:['travel words','Reisewörter'], school:['school things','Schulsachen'],
+  number:['numbers','Zahlen'], jobs:['jobs','Berufe'],
+  play:['games & sports','Spiele & Sport'], time:['time words','Zeitwörter']
+};
+function oddGroupLabel(c){ var g=ODD_GROUP[c]; return g?(S.lang==='de'?g[1]:g[0]):catLabel(c); }
 function topicWords(id){return WORDS.filter(function(w){return w.topic===id;});}
 function topicById(id){for(var i=0;i<TOPICS.length;i++)if(TOPICS[i].id===id)return TOPICS[i];}
 
@@ -1836,7 +1849,7 @@ function startOdd(){
     var bWords=byCat[B].filter(function(w){return !aGloss[gloss(w)];});
     if(!bWords.length)continue;
     var intr=shuffle(bWords)[0];
-    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:catLabel(A)});
+    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:catLabel(A),groupCat:A});
   }
   if(rounds.length<4){toast(de?'Nicht genug Wörter':'Not enough words');return;}
   odd={rounds:rounds,i:0,score:0,picked:null};
@@ -1863,7 +1876,9 @@ function viewOdd(){
     '<div class="qhead"><span>'+(odd.i+1)+' / '+odd.rounds.length+'</span>'+
       '<div class="progressbar" style="flex:1"><i style="width:'+(odd.i/odd.rounds.length*100).toFixed(0)+'%"></i></div>'+
       '<span>'+odd.score+' '+(de?'richtig':'right')+'</span><button class="back-link" data-omenu="1">'+(de?'Ende':'End')+'</button></div>'+
-    '<div class="card pad" style="text-align:center"><div class="eyebrow">'+(de?'Welches Wort passt nicht?':'Which word does not belong?')+'</div></div>'+
+    '<div class="card pad" style="text-align:center"><div class="eyebrow">'+(de?'Drei sind':'Three are')+'</div>'+
+      '<div style="font-family:\'Fredoka\',sans-serif;font-size:1.35rem;font-weight:700;margin:2px 0 2px">'+esc(oddGroupLabel(rd.groupCat))+'</div>'+
+      '<div class="muted" style="font-size:.95rem">'+(de?'Tippe das Wort an, das nicht dazugehört':'Tap the word that does not belong')+'</div></div>'+
     '<div class="stack" style="gap:8px">';
   rd.opts.forEach(function(o){
     var cls='opt';
