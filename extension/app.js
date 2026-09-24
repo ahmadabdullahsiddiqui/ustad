@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.3';
+var APP_VERSION='1.6.4';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1065,14 +1065,23 @@ function viewHome(){
   h+='</div>';
   h+='<button class="btn ghost" data-go="learn">'+(S.lang==='de'?('Alle '+TOPICS.length+' Themen'):('See all '+TOPICS.length+' topics'))+'</button>';
 
-  h+='<div class="sec"><h2>Play a game</h2><span class="ur">کھیل</span></div>';
   var de=S.lang==='de';
+
+  /* Writing practice — its own prominent, featured group (a signature feature). */
+  h+='<div class="sec"><h2>Writing practice</h2><span class="ur">لکھائی</span></div>';
+  h+='<div class="card pad feature-write" style="background:linear-gradient(135deg,#f9820b,#ff5d8f);color:#fff;box-shadow:0 8px 22px rgba(249,130,11,.35)">'+
+     '<div class="eyebrow" style="color:rgba(255,255,255,.9);letter-spacing:.08em">'+(de?'★ Besonderes Feature':'★ Featured')+'</div>'+
+     '<div style="font-family:\'Fredoka\',sans-serif;font-size:1.5rem;font-weight:700;line-height:1.15;margin:4px 0 6px">✍️ '+(de?'Urdu schreiben lernen':'Learn to write Urdu')+'</div>'+
+     '<p style="margin:0 0 14px;opacity:.94;font-size:1.02rem">'+(de?'Zieh Buchstaben und ganze Wörter im fließenden Nastaliq mit dem Finger nach — mit Vorlage zum Testen und sofortiger Rückmeldung.':'Trace letters and whole words in flowing nastaliq with your finger — with a guide to test yourself and instant feedback.')+'</p>'+
+     '<button class="btn" data-go="write" style="background:#fff;color:#c92a2a;font-weight:700">✍️ '+(de?'Schreibübung starten':'Start writing practice')+' →</button>'+
+     '</div>';
+
+  h+='<div class="sec"><h2>Play a game</h2><span class="ur">کھیل</span></div>';
   h+='<button class="btn" data-go="game" style="background:linear-gradient(135deg,#12b886,#4c6ef5)">🎮 '+(de?'Memory — finde die Paare':'Memory Match — match the words')+'</button>';
   h+='<button class="btn" data-open="listen" style="background:linear-gradient(135deg,#4c6ef5,#22b8cf);margin-top:8px">🔊 '+(de?'Hören & Wählen — welches Wort hörst du?':'Listen &amp; Pick — which word do you hear?')+'</button>';
   h+='<button class="btn" data-open="build" style="background:linear-gradient(135deg,#0ca678,#66a80f);margin-top:8px">🔤 '+(de?'Wort bauen — Buchstaben ordnen':'Build the Word — spell it letter by letter')+'</button>';
   h+='<button class="btn" data-open="rush" style="background:linear-gradient(135deg,#ff922b,#f03e3e);margin-top:8px">⏱️ '+(de?'Wort-Rausch — 60 Sekunden':'Word Rush — beat the 60-second clock')+'</button>';
   h+='<button class="btn" data-open="odd" style="background:linear-gradient(135deg,#9b5de5,#4c6ef5);margin-top:8px">🧩 '+(de?'Was passt nicht?':'Odd One Out — spot the intruder')+'</button>';
-  h+='<button class="btn" data-go="write" style="background:linear-gradient(135deg,#f9820b,#ff5d8f);margin-top:8px">✍️ '+(de?'Schreibübung — Buchstaben & Wörter nachziehen':'Writing practice — trace letters &amp; words')+'</button>';
 
   h+='<div class="sec"><h2>Pronunciation</h2><span class="ur">تلفظ</span></div>';
   h+=pronCard();
