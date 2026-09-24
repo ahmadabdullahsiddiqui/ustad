@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.5.12';
+var APP_VERSION='1.6.0';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -980,11 +980,14 @@ function paintChrome(){
 function render(){
   rollDay();paintChrome();
   var v=document.getElementById('view');
-  var html=({home:viewHome,learn:viewLearn,cards:viewCards,quiz:viewQuiz,script:viewScript,game:viewGame,write:viewWrite})[route.tab]();
+  var html=({home:viewHome,learn:viewLearn,cards:viewCards,quiz:viewQuiz,script:viewScript,game:viewGame,write:viewWrite,listen:viewListen,build:viewBuild,rush:viewRush,odd:viewOdd})[route.tab]();
   v.innerHTML=html;
   paintTabs();
   if(S.lang==='de')translateDom(v);
   if(route.tab==='write')initWrite();   /* wire up the drawing canvas after render */
+  if(route.tab==='listen'&&listen&&listen.i<listen.qs.length&&!listen.picked&&listen._spoke!==listen.i){
+    listen._spoke=listen.i;speak(listen.qs[listen.i].w.ur);   /* auto-play the word to identify */
+  }
 }
 
 /* ---- home ---- */
@@ -1030,8 +1033,13 @@ function viewHome(){
   h+='<button class="btn ghost" data-go="learn">'+(S.lang==='de'?('Alle '+TOPICS.length+' Themen'):('See all '+TOPICS.length+' topics'))+'</button>';
 
   h+='<div class="sec"><h2>Play a game</h2><span class="ur">کھیل</span></div>';
-  h+='<button class="btn" data-go="game" style="background:linear-gradient(135deg,#12b886,#4c6ef5)">🎮 Memory Match — match the words</button>';
-  h+='<button class="btn" data-go="write" style="background:linear-gradient(135deg,#f9820b,#ff5d8f);margin-top:8px">✍️ Writing practice — trace letters &amp; words</button>';
+  var de=S.lang==='de';
+  h+='<button class="btn" data-go="game" style="background:linear-gradient(135deg,#12b886,#4c6ef5)">🎮 '+(de?'Memory — finde die Paare':'Memory Match — match the words')+'</button>';
+  h+='<button class="btn" data-open="listen" style="background:linear-gradient(135deg,#4c6ef5,#22b8cf);margin-top:8px">🔊 '+(de?'Hören & Wählen — welches Wort hörst du?':'Listen &amp; Pick — which word do you hear?')+'</button>';
+  h+='<button class="btn" data-open="build" style="background:linear-gradient(135deg,#0ca678,#66a80f);margin-top:8px">🔤 '+(de?'Wort bauen — Buchstaben ordnen':'Build the Word — spell it letter by letter')+'</button>';
+  h+='<button class="btn" data-open="rush" style="background:linear-gradient(135deg,#ff922b,#f03e3e);margin-top:8px">⏱️ '+(de?'Wort-Rausch — 60 Sekunden':'Word Rush — beat the 60-second clock')+'</button>';
+  h+='<button class="btn" data-open="odd" style="background:linear-gradient(135deg,#9b5de5,#4c6ef5);margin-top:8px">🧩 '+(de?'Was passt nicht?':'Odd One Out — spot the intruder')+'</button>';
+  h+='<button class="btn" data-go="write" style="background:linear-gradient(135deg,#f9820b,#ff5d8f);margin-top:8px">✍️ '+(de?'Schreibübung — Buchstaben & Wörter nachziehen':'Writing practice — trace letters &amp; words')+'</button>';
 
   h+='<div class="sec"><h2>Pronunciation</h2><span class="ur">تلفظ</span></div>';
   h+=pronCard();
@@ -1519,6 +1527,270 @@ function checkWrite(){
   else { el.className='fb fb-no'; el.textContent=de?'Fast! Schreib den ganzen Buchstaben 💪':'Almost! Write the whole letter 💪'; }
 }
 
+/* ---- Listen & Pick (hear a word, tap its meaning) ---- */
+var listen=null;
+function startListen(topicId){
+  var de=S.lang==='de';
+  var pool=topicId?topicWords(topicId):WORDS.filter(function(w){return w.kind==='word';});
+  if(pool.length<4){toast(de?'Nicht genug Wörter':'Not enough words yet');return;}
+  var picks=shuffle(pool.slice()).slice(0,Math.min(8,pool.length));
+  var qs=picks.map(function(w){
+    var others=shuffle(pool.filter(function(o){return o.id!==w.id&&gloss(o)!==gloss(w);})).slice(0,3);
+    return {w:w,opts:shuffle([w].concat(others))};
+  });
+  listen={topic:topicId||null,qs:qs,i:0,score:0,picked:null,_spoke:-1};
+  go('listen');
+}
+function viewListen(){
+  var de=S.lang==='de';
+  if(!listen){
+    return '<div class="stack"><div class="sec"><h2 style="font-size:1.35rem">'+(de?'Hören & Wählen':'Listen & Pick')+'</h2><span class="ur">سنو اور چنو</span></div>'+
+      '<p class="muted" style="margin:0 2px">'+(de?'Höre das Wort und tippe die richtige Bedeutung. Tippe 🔊, um es noch einmal zu hören.':'Listen to the word, then tap the right meaning. Tap 🔊 to hear it again.')+'</p>'+
+      '<button class="btn" data-listen="all">'+(de?'Gemischt — zufällige Wörter':'Mixed — random words')+'</button>'+
+      '<div class="sec"><h2>'+(de?'Oder ein Thema wählen':'Or pick a topic')+'</h2></div><div class="card rowlist">'+
+      TOPICS.filter(function(t){return t.kind==='word';}).map(function(t){return topicRow(t,'data-listen');}).join('')+'</div></div>';
+  }
+  if(listen.i>=listen.qs.length){
+    var pct=Math.round(listen.score/listen.qs.length*100), aced=pct===100;
+    return '<div class="stack" style="text-align:center;padding-top:20px">'+
+      (aced?'<div class="ur" style="font-size:2.4rem;color:var(--gold)">شاباش</div>':'')+
+      '<h2 style="font-size:1.5rem">'+(aced?(de?'Perfektes Gehör! 🎉':'Perfect ear! 🎉'):(de?'Gut gemacht! 🌟':'Well done! 🌟'))+'</h2>'+
+      '<p class="muted" style="margin:0">'+listen.score+(de?' von ':' of ')+listen.qs.length+(de?' richtig':' correct')+'</p>'+
+      '<button class="btn" data-listen="'+(listen.topic||'all')+'">'+(de?'Nochmal spielen':'Play again')+'</button>'+
+      '<button class="btn ghost" data-lmenu="1">'+(de?'Anderes Thema':'Pick another')+'</button></div>';
+  }
+  var q=listen.qs[listen.i], w=q.w;
+  var h='<div class="stack">'+
+    '<div class="qhead"><span>'+(listen.i+1)+' / '+listen.qs.length+'</span>'+
+      '<div class="progressbar" style="flex:1"><i style="width:'+(listen.i/listen.qs.length*100).toFixed(0)+'%"></i></div>'+
+      '<span>'+listen.score+' '+(de?'richtig':'right')+'</span><button class="back-link" data-lmenu="1">'+(de?'Ende':'End')+'</button></div>'+
+    '<div class="card pad" style="text-align:center">'+
+      '<div class="eyebrow">'+(de?'Welches Wort hörst du?':'Which word do you hear?')+'</div>'+
+      '<button class="btn" data-lreplay="1" style="margin-top:10px">🔊 '+(de?'Nochmal hören':'Play the word')+'</button></div>'+
+    '<div class="stack" style="gap:8px">';
+  q.opts.forEach(function(o){
+    var cls='opt';
+    if(listen.picked){ if(o.id===w.id)cls+=' correct'; else if(o.id===listen.picked)cls+=' wrong'; }
+    h+='<button class="'+cls+'" data-lopt="'+o.id+'"'+(listen.picked?' disabled':'')+'><div><div style="font-weight:600">'+esc(gloss(o))+'</div></div></button>';
+  });
+  h+='</div>';
+  if(listen.picked){
+    var right=listen.picked===w.id;
+    h+='<div class="fb '+(right?'fb-ok':'fb-no')+'">'+(right?praise():tryAgainMsg())+'</div>';
+    h+='<div class="card pad" style="text-align:center"><div class="ur" style="font-size:1.6rem">'+esc(w.ur)+'</div>'+
+       '<div class="tl">'+esc(w.tl)+'</div><div class="muted">'+esc(gloss(w))+'</div>'+
+       '<div style="margin-top:10px" class="split"><button class="btn ghost slim" data-speak="'+esc(w.ur)+'">'+(de?'Anhören':'Hear it')+'</button>'+
+       '<button class="btn slim" data-lnext="1">'+(de?'Weiter':'Next')+'</button></div></div>';
+  }
+  return h+'</div>';
+}
+
+/* ---- Build the Word (tap the letters into the right order) ---- */
+var build=null;
+function startBuild(topicId){
+  var de=S.lang==='de';
+  var pool=topicId?topicWords(topicId):WORDS.filter(function(w){return w.kind==='word';});
+  pool=pool.filter(function(w){var n=w.ur.replace(/\s/g,'');return w.ur.indexOf(' ')<0&&n.length>=2&&n.length<=7;});
+  if(!pool.length){toast(de?'Nicht genug kurze Wörter':'Not enough short words here');return;}
+  var picks=shuffle(pool.slice()).slice(0,Math.min(8,pool.length));
+  build={list:picks,i:0,order:[],tiles:null,solved:false,guide:false,topic:topicId||null,done:0};
+  setupBuild();
+  go('build');
+}
+function setupBuild(){
+  var cs=build.list[build.i].ur.split('');
+  var tiles=cs.map(function(ch,idx){return {ch:ch,idx:idx,used:false};});
+  shuffle(tiles);
+  build.tiles=tiles; build.order=[]; build.solved=false;
+}
+function viewBuild(){
+  var de=S.lang==='de';
+  if(!build){
+    return '<div class="stack"><div class="sec"><h2 style="font-size:1.35rem">'+(de?'Wort bauen':'Build the Word')+'</h2><span class="ur">لفظ بناؤ</span></div>'+
+      '<p class="muted" style="margin:0 2px">'+(de?'Tippe die Buchstaben in der richtigen Reihenfolge an, um das Wort zu schreiben. Urdu läuft von rechts nach links!':'Tap the letters in the right order to spell the word. Urdu is written right to left!')+'</p>'+
+      '<div class="sec"><h2>'+(de?'Ein Thema wählen':'Pick a topic')+'</h2></div><div class="card rowlist">'+
+      TOPICS.filter(function(t){return t.kind==='word';}).map(function(t){return topicRow(t,'data-build');}).join('')+'</div></div>';
+  }
+  if(build.i>=build.list.length){
+    return '<div class="stack" style="text-align:center;padding-top:20px">'+
+      '<div class="ur" style="font-size:2.4rem;color:var(--gold)">شاباش</div>'+
+      '<h2 style="font-size:1.5rem">'+(de?'Alle Wörter gebaut! 🎉':'You built them all! 🎉')+'</h2>'+
+      '<p class="muted" style="margin:0">'+build.list.length+(de?' Wörter':' words')+'</p>'+
+      '<button class="btn" data-build="'+(build.topic||'all')+'">'+(de?'Nochmal spielen':'Play again')+'</button>'+
+      '<button class="btn ghost" data-bmenu="1">'+(de?'Anderes Thema':'Pick another')+'</button></div>';
+  }
+  var w=build.list[build.i], n=build.list.length;
+  var built=build.order.map(function(t){return t.ch;}).join('');
+  var h='<div class="stack">'+
+    '<div class="flash-head"><a class="back-link" data-bmenu="1">'+(de?'← Zurück':'← Back')+'</a>'+
+      '<span class="counter"><b>'+(build.i+1)+'</b> / '+n+'</span></div>'+
+    '<div class="card pad" style="text-align:center"><div class="tl">'+esc(w.tl)+'</div><div class="muted">'+esc(gloss(w))+'</div>'+spkBtn(w.ur)+'</div>';
+  h+='<div class="card pad" style="text-align:center;min-height:64px;display:flex;align-items:center;justify-content:center">'+
+     '<span class="ur" style="font-size:2.2rem;letter-spacing:2px" dir="rtl">'+(built?esc(built):'<span class="muted" style="font-size:1rem">'+(de?'tippe die Buchstaben unten an':'tap the letters below')+'</span>')+'</span></div>';
+  if(build.guide) h+='<div class="card pad" style="text-align:center"><div class="eyebrow">'+(de?'Vorlage':'Answer')+'</div><div class="ur" style="font-size:1.8rem;color:var(--ink3)" dir="rtl">'+esc(w.ur)+'</div></div>';
+  if(build.solved){
+    h+='<div class="fb fb-ok">'+(de?'Super gebaut! ✓ 🎉':'Perfectly built! ✓ 🎉')+'</div>';
+    h+='<button class="btn" data-bnext="1">'+(build.i<n-1?(de?'Nächstes Wort →':'Next word →'):(de?'Fertig':'Done'))+'</button>';
+  } else {
+    h+='<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:2px 0">';
+    build.tiles.forEach(function(tile,ti){
+      h+='<button class="mcard"'+(tile.used?' disabled style="visibility:hidden"':'')+' data-btile="'+ti+'" style="width:60px;height:60px;min-width:0"><span class="ur" style="font-size:1.9rem">'+esc(tile.ch)+'</span></button>';
+    });
+    h+='</div>';
+    h+='<div class="split">'+
+       '<button class="btn ghost" data-bundo="1"'+(build.order.length?'':' disabled')+'>'+(de?'↶ Rückgängig':'↶ Undo')+'</button>'+
+       '<button class="toggle" data-bguide="1" aria-pressed="'+(build.guide?'true':'false')+'">'+(build.guide?(de?'Vorlage ausblenden':'Hide answer'):(de?'Vorlage zeigen':'Show answer'))+'</button></div>';
+  }
+  return h+'</div>';
+}
+function tapBuild(ti){
+  if(!build||build.solved)return;
+  var tile=build.tiles[ti]; if(!tile||tile.used)return;
+  if(tile.idx===build.order.length){
+    tile.used=true; build.order.push(tile);
+    if(build.order.length===build.tiles.length){ build.solved=true; build.done++; render(); celebrate(); speak(build.list[build.i].ur); return; }
+    render();
+  } else {
+    toast(S.lang==='de'?'Versuch einen anderen 🤔':'Try another letter 🤔');
+  }
+}
+function undoBuild(){
+  if(!build||build.solved||!build.order.length)return;
+  var t=build.order.pop(); t.used=false; render();
+}
+
+/* ---- Word Rush (beat the clock) ---- */
+var rush=null;
+function startRush(){
+  rush={time:60,score:0,q:null,over:false,last:null,timer:null};
+  nextRush();
+  go('rush');
+  rush.timer=setInterval(rushTick,1000);
+}
+function rushTick(){
+  if(!rush||route.tab!=='rush'){ if(rush&&rush.timer)clearInterval(rush.timer); return; }
+  rush.time--;
+  if(rush.time<=0){ rush.time=0; finishRush(); return; }
+  var el=document.getElementById('rushTime'); if(el)el.textContent=rush.time;
+}
+function finishRush(){
+  if(rush.timer)clearInterval(rush.timer);
+  rush.over=true;
+  if(S.rush==null||rush.score>S.rush){S.rush=rush.score;save();}
+  render();
+  if(rush.score>0&&rush.score>=(S.rush||0))celebrate();
+}
+function nextRush(){
+  var pool=WORDS.filter(function(w){return w.kind==='word';});
+  var w=pool[Math.floor(Math.random()*pool.length)];
+  var others=shuffle(pool.filter(function(o){return o.id!==w.id&&o.en!==w.en;})).slice(0,3);
+  var dir=Math.random()<.5?'en2ur':'ur2en';
+  rush.q={w:w,dir:dir,opts:shuffle([w].concat(others))};
+  rush.last=null;
+}
+function answerRush(id){
+  if(!rush||rush.over||rush.last)return;
+  var right=id===rush.q.w.id;
+  if(right){ rush.score++; nextRush(); render(); return; }
+  rush.last={id:id};
+  render();
+  setTimeout(function(){ if(rush&&!rush.over){ nextRush(); render(); } },650);
+}
+function viewRush(){
+  var de=S.lang==='de';
+  if(!rush){
+    return '<div class="stack"><div class="sec"><h2 style="font-size:1.35rem">'+(de?'Wort-Rausch':'Word Rush')+'</h2><span class="ur">تیز کھیل</span></div>'+
+      '<p class="muted" style="margin:0 2px">'+(de?'60 Sekunden — wie viele Wörter schaffst du? Tippe schnell die richtige Antwort an!':'60 seconds — how many words can you match? Tap the right answer, fast!')+'</p>'+
+      (S.rush!=null?'<div class="card pad" style="text-align:center"><div class="eyebrow">'+(de?'Bestwert':'Best score')+'</div><div style="font-family:\'Fredoka\',sans-serif;font-size:2.4rem;font-weight:700;color:var(--jade)">'+S.rush+'</div></div>':'')+
+      '<button class="btn" data-rush="go" style="background:linear-gradient(135deg,#ff922b,#f03e3e)">⏱️ '+(de?'Los geht’s!':'Start!')+'</button></div>';
+  }
+  if(rush.over){
+    var best=(S.rush!=null?S.rush:rush.score), isBest=rush.score>=best&&rush.score>0;
+    return '<div class="stack" style="text-align:center;padding-top:20px">'+
+      (isBest?'<div class="ur" style="font-size:2.2rem;color:var(--gold)">شاباش</div>':'')+
+      '<div class="eyebrow">'+(de?'Zeit um!':'Time’s up!')+'</div>'+
+      '<div style="font-family:\'Fredoka\',sans-serif;font-size:3.4rem;font-weight:700;line-height:1;color:var(--jade)">'+rush.score+'</div>'+
+      '<p class="muted" style="margin:0">'+(de?'Wörter in 60 Sekunden':'words in 60 seconds')+(isBest?(de?' · Neuer Bestwert! 🏆':' · New best! 🏆'):'')+'</p>'+
+      '<button class="btn" data-rush="go">'+(de?'Nochmal':'Play again')+'</button>'+
+      '<button class="btn ghost" data-rmenu="1">'+(de?'Zurück':'Back')+'</button></div>';
+  }
+  var q=rush.q, w=q.w;
+  var prompt=q.dir==='en2ur'
+    ? '<div class="prompt" style="font-family:Newsreader,Georgia,serif;font-size:1.6rem">'+esc(gloss(w))+'</div>'
+    : '<div class="ur" style="font-size:2rem">'+esc(w.ur)+'</div>';
+  var h='<div class="stack">'+
+    '<div class="qhead"><span style="font-family:\'Fredoka\',sans-serif;font-size:1.3rem;font-weight:700;color:var(--gulnar)">⏱️ <b id="rushTime">'+rush.time+'</b>s</span>'+
+      '<div class="progressbar grow" style="flex:1"><i style="width:'+(rush.time/60*100).toFixed(0)+'%"></i></div>'+
+      '<span>'+rush.score+' '+(de?'Punkte':'pts')+'</span><button class="back-link" data-rmenu="1">'+(de?'Ende':'End')+'</button></div>'+
+    '<div class="card pad" style="text-align:center">'+
+      '<div class="eyebrow">'+(q.dir==='en2ur'?(de?'Welches ist Urdu?':'Which is the Urdu?'):(de?'Was bedeutet das?':'What does this mean?'))+'</div>'+
+      '<div style="margin-top:8px">'+prompt+'</div></div>'+
+    '<div class="stack" style="gap:8px">';
+  q.opts.forEach(function(o){
+    var cls='opt';
+    if(rush.last){ if(o.id===w.id)cls+=' correct'; else if(o.id===rush.last.id)cls+=' wrong'; }
+    var body=q.dir==='en2ur'
+      ? '<div><div class="ur">'+esc(o.ur)+'</div><div class="tl">'+esc(o.tl)+'</div></div>'
+      : '<div><div style="font-weight:600">'+esc(gloss(o))+'</div></div>';
+    h+='<button class="'+cls+'" data-ropt="'+o.id+'"'+(rush.last?' disabled':'')+'>'+body+'</button>';
+  });
+  return h+'</div></div>';
+}
+
+/* ---- Odd One Out (tap the word that doesn't belong) ---- */
+var odd=null;
+function startOdd(){
+  var de=S.lang==='de';
+  var tw=TOPICS.filter(function(t){return t.kind==='word'&&topicWords(t.id).length>=3;});
+  if(tw.length<2){toast(de?'Nicht genug Themen':'Not enough topics');return;}
+  var rounds=[];
+  for(var r=0;r<8;r++){
+    var ts=shuffle(tw.slice());
+    var three=shuffle(topicWords(ts[0].id).slice()).slice(0,3);
+    var intr=shuffle(topicWords(ts[1].id).slice())[0];
+    rounds.push({opts:shuffle(three.concat(intr)),ans:intr.id,topic:ts[0].name});
+  }
+  odd={rounds:rounds,i:0,score:0,picked:null};
+  go('odd');
+}
+function viewOdd(){
+  var de=S.lang==='de';
+  if(!odd){
+    return '<div class="stack" style="text-align:center;padding-top:16px"><div class="sec" style="justify-content:center"><h2 style="font-size:1.35rem">'+(de?'Was passt nicht?':'Odd One Out')+'</h2><span class="ur">فالتو لفظ</span></div>'+
+      '<p class="muted" style="margin:0 2px">'+(de?'Drei Wörter gehören zusammen, eines nicht. Tippe das Wort an, das nicht dazugehört!':'Three words belong together, one does not. Tap the word that does not fit!')+'</p>'+
+      '<button class="btn" data-odd="go" style="background:linear-gradient(135deg,#9b5de5,#4c6ef5)">🧩 '+(de?'Los geht’s!':'Start!')+'</button></div>';
+  }
+  if(odd.i>=odd.rounds.length){
+    var pct=Math.round(odd.score/odd.rounds.length*100), aced=pct===100;
+    return '<div class="stack" style="text-align:center;padding-top:20px">'+
+      (aced?'<div class="ur" style="font-size:2.4rem;color:var(--gold)">شاباش</div>':'')+
+      '<h2 style="font-size:1.5rem">'+(aced?(de?'Perfekt! 🎉':'Perfect! 🎉'):(de?'Gut gemacht! 🌟':'Well done! 🌟'))+'</h2>'+
+      '<p class="muted" style="margin:0">'+odd.score+(de?' von ':' of ')+odd.rounds.length+(de?' richtig':' correct')+'</p>'+
+      '<button class="btn" data-odd="go">'+(de?'Nochmal spielen':'Play again')+'</button>'+
+      '<button class="btn ghost" data-omenu="1">'+(de?'Zurück':'Back')+'</button></div>';
+  }
+  var rd=odd.rounds[odd.i];
+  var h='<div class="stack">'+
+    '<div class="qhead"><span>'+(odd.i+1)+' / '+odd.rounds.length+'</span>'+
+      '<div class="progressbar" style="flex:1"><i style="width:'+(odd.i/odd.rounds.length*100).toFixed(0)+'%"></i></div>'+
+      '<span>'+odd.score+' '+(de?'richtig':'right')+'</span><button class="back-link" data-omenu="1">'+(de?'Ende':'End')+'</button></div>'+
+    '<div class="card pad" style="text-align:center"><div class="eyebrow">'+(de?'Welches Wort passt nicht?':'Which word does not belong?')+'</div></div>'+
+    '<div class="stack" style="gap:8px">';
+  rd.opts.forEach(function(o){
+    var cls='opt';
+    if(odd.picked){ if(o.id===rd.ans)cls+=' correct'; else if(o.id===odd.picked)cls+=' wrong'; }
+    h+='<button class="'+cls+'" data-oopt="'+o.id+'"'+(odd.picked?' disabled':'')+'>'+
+       '<div><div style="font-weight:600">'+esc(gloss(o))+'</div><div class="ur" style="font-size:1.3rem">'+esc(o.ur)+'</div></div></button>';
+  });
+  h+='</div>';
+  if(odd.picked){
+    var right=odd.picked===rd.ans;
+    h+='<div class="fb '+(right?'fb-ok':'fb-no')+'">'+(right?(de?'Richtig! 🎉':'Correct! 🎉'):(de?'Fast! Die anderen drei sind: '+esc(rd.topic):'Almost! The other three are: '+esc(rd.topic)))+'</div>';
+    h+='<button class="btn" data-onext="1">'+(odd.i<odd.rounds.length-1?(de?'Weiter →':'Next →'):(de?'Fertig':'Done'))+'</button>';
+  }
+  return h+'</div>';
+}
+
 /* ============================ events ============================ */
 function onClick(e){
   var t=e.target;
@@ -1547,6 +1819,42 @@ function onClick(e){
     el.textContent=writeState.guide?(S.lang==='de'?'Vorlage ausblenden':'Hide guide'):(S.lang==='de'?'Vorlage zeigen':'Show guide');
     return;}
   if((el=t.closest('[data-writenav]'))){writeState.i+=parseInt(el.dataset.writenav,10);render();return;}
+  if((el=t.closest('[data-open]'))){listen=null;build=null;odd=null;if(rush&&rush.timer)clearInterval(rush.timer);rush=null;go(el.dataset.open);return;}
+  /* Listen & Pick */
+  if((el=t.closest('[data-listen]'))){startListen(el.dataset.listen==='all'?null:el.dataset.listen);return;}
+  if((el=t.closest('[data-lreplay]'))){if(listen&&listen.i<listen.qs.length)speak(listen.qs[listen.i].w.ur);return;}
+  if((el=t.closest('[data-lopt]'))){
+    if(!listen||listen.picked)return;
+    listen.picked=el.dataset.lopt;
+    var lw=listen.qs[listen.i].w, lright=listen.picked===lw.id;
+    if(lright)listen.score++;
+    grade(lw.id,lright?'good':'again');
+    render();speak(lw.ur);return;
+  }
+  if((el=t.closest('[data-lnext]'))){if(!listen)return;listen.i++;listen.picked=null;render();if(listen.i>=listen.qs.length&&listen.score===listen.qs.length)celebrate();return;}
+  if((el=t.closest('[data-lmenu]'))){listen=null;render();return;}
+  /* Build the Word */
+  if((el=t.closest('[data-build]'))){startBuild(el.dataset.build==='all'?null:el.dataset.build);return;}
+  if((el=t.closest('[data-btile]'))){tapBuild(parseInt(el.dataset.btile,10));return;}
+  if((el=t.closest('[data-bundo]'))){undoBuild();return;}
+  if((el=t.closest('[data-bguide]'))){build.guide=!build.guide;render();return;}
+  if((el=t.closest('[data-bnext]'))){if(!build)return;build.i++;if(build.i<build.list.length)setupBuild();render();return;}
+  if((el=t.closest('[data-bmenu]'))){build=null;render();return;}
+  /* Word Rush */
+  if((el=t.closest('[data-rush]'))){startRush();return;}
+  if((el=t.closest('[data-ropt]'))){answerRush(el.dataset.ropt);return;}
+  if((el=t.closest('[data-rmenu]'))){if(rush&&rush.timer)clearInterval(rush.timer);rush=null;render();return;}
+  /* Odd One Out */
+  if((el=t.closest('[data-odd]'))){startOdd();return;}
+  if((el=t.closest('[data-oopt]'))){
+    if(!odd||odd.picked)return;
+    odd.picked=el.dataset.oopt;
+    var orr=odd.rounds[odd.i];
+    if(odd.picked===orr.ans)odd.score++;
+    render();return;
+  }
+  if((el=t.closest('[data-onext]'))){if(!odd)return;odd.i++;odd.picked=null;render();if(odd.i>=odd.rounds.length&&odd.score===odd.rounds.length)celebrate();return;}
+  if((el=t.closest('[data-omenu]'))){odd=null;render();return;}
   if((el=t.closest('[data-flip]'))){
     if(!session)return;
     if(!session.flipped){session.flipped=true;render();}
