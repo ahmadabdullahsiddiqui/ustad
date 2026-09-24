@@ -771,7 +771,7 @@ const GRAMMAR = [
 /* ============================ state ============================ */
 var ZWJ='‍';
 var KEY='urdu.ahmadabdullah';
-var APP_VERSION='1.6.6';
+var APP_VERSION='1.6.7';
 var INTERVALS=[0,1,3,7,16,35];
 var GOAL=20;
 
@@ -1808,7 +1808,12 @@ function startOdd(){
      action words …) and the intruder is a clearly different class. */
   var byCat={};
   WORDS.forEach(function(w){ if(w.kind!=='word')return; (byCat[w.cat]=byCat[w.cat]||[]).push(w); });
+  /* Only concrete, picture-able categories so the odd word is obviously a
+     different KIND of thing a child can spot (an animal among fruits) — not an
+     abstract part-of-speech difference (a verb among body parts). */
+  var ABSTRACT={verb:1,adj:1,feelings:1,greet:1,phrase:1};
   var cats=Object.keys(byCat).filter(function(c){
+    if(ABSTRACT[c])return false;
     var g={}; byCat[c].forEach(function(w){g[gloss(w)]=1;}); return Object.keys(g).length>=3;
   });
   if(cats.length<2){toast(de?'Nicht genug Kategorien':'Not enough categories');return;}
